@@ -87,7 +87,7 @@ local function prompt_count_or_bank(totalColors,bits)
   d:radio{id="mode_bank",text="By 16-color bank",onclick=function()toggle("bank")end}
   d:combobox{id="bank",label="Bank",options=bankOptions,option=bankOptions[1],enabled=false}
 
-  local result
+  local result = nil
   d:button{id="ok",text="OK",focus=true,onclick=function()
     local data=d.data
     if data.mode_count then
@@ -115,20 +115,36 @@ local function prompt_count_or_bank(totalColors,bits)
       d:close()
     end
   end}
-  d:button{id="cancel",text="Cancel"}
+  d:button{id="cancel",text="Cancel",onclick=function()
+    result = nil
+    d:close()
+  end}
   d:show()
   return result
 end
 
 -- MAIN
 local pick=Dialog{title="Import NCLR Palette"}
+local selectedPath = nil
 pick:file{id="nclr",label="NCLR file",open=true,filetypes={"nclr","rlcn"}}
-pick:button{id="ok",text="Next",focus=true}
-pick:button{id="cancel",text="Cancel"}
+pick:button{id="ok",text="Next",focus=true,onclick=function()
+  local data = pick.data
+  local p = data and data.nclr
+  if not p or p=="" then
+    app.alert{title="NCLR Import",text="Please choose a .nclr/.rlcn file."}
+    return -- keep dialog open
+  end
+  selectedPath = p
+  pick:close()
+end}
+pick:button{id="cancel",text="Cancel",onclick=function()
+  selectedPath = nil
+  pick:close()
+end}
 pick:show()
 
-local path=pick.data and pick.data.nclr
-if not path or path=="" then return end
+local path = selectedPath
+if not path then return end
 
 local ok,parsed=pcall(read_nclr_palette,path)
 if not ok then app.alert{title="NCLR Import",text=tostring(parsed)};return end

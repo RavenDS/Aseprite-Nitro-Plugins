@@ -126,6 +126,8 @@ end
 -- dialog
 local function show_export_dialog()
   local d = Dialog{ title="Export NCLR/RLCN" }
+  local result = nil  -- set ONLY on successful OK
+
   d:radio{ id="bpp4", label="Mode", text="4bpp", selected=true }
   d:radio{ id="bpp8", text="8bpp" }
 
@@ -144,41 +146,57 @@ local function show_export_dialog()
 
   d:check{ id="pmcp", label="Footer", text="Append optional PMCP footer", selected=false }
   d:file{ id="out", label="Output", save=true, filename="palette.rlcn", filetypes={"nclr","rlcn"} }
-  d:button{ id="ok", text="Export", focus=true }
-  d:button{ id="cancel", text="Cancel" }
-  d:show()
 
-  local data = d.data
-  if not data or data.cancel then return nil end
-  if not data.out or data.out == "" then
-    app.alert{ title="Export NCLR/RLCN", text="Please choose an output file." }
-    return nil
-  end
+  d:button{
+    id="ok", text="Export", focus=true,
+    onclick=function()
+      local data = d.data or {}
 
-  local bits = data.bpp8 and 8 or 4
-  local ftype = (data.ftype == "NCLR") and "NCLR" or "RLCN"
+      if not data.out or data.out == "" then
+        app.alert{ title="Export NCLR/RLCN", text="Please choose an output file." }
+        return -- keep dialog open
+      end
 
-  local fileMagic, bomVal, tagFourCC
-  if ftype == "RLCN" then
-    fileMagic = "RLCN"
-    bomVal = 0xFEFF
-    tagFourCC = "TTLP"
-  else
-    fileMagic = "NCLR"
-    bomVal = 0xFFFE
-    tagFourCC = "PLTT"
-  end
+      local bits = data.bpp8 and 8 or 4
+      local ftype = (data.ftype == "NCLR") and "NCLR" or "RLCN"
 
-  return {
-    bits = bits,
-    ftype = ftype,
-    fileMagic = fileMagic,
-    bomVal = bomVal,
-    tag = tagFourCC,
-    pmcp = (data.pmcp and true or false),
-    out = data.out
+      local fileMagic, bomVal, tagFourCC
+      if ftype == "RLCN" then
+        fileMagic = "RLCN"
+        bomVal = 0xFEFF
+        tagFourCC = "TTLP"
+      else
+        fileMagic = "NCLR"
+        bomVal = 0xFFFE
+        tagFourCC = "PLTT"
+      end
+
+      result = {
+        bits = bits,
+        ftype = ftype,
+        fileMagic = fileMagic,
+        bomVal = bomVal,
+        tag = tagFourCC,
+        pmcp = (data.pmcp and true or false),
+        out = data.out
+      }
+
+      d:close()
+    end
   }
+
+  d:button{
+    id="cancel", text="Cancel",
+    onclick=function()
+      result = nil
+      d:close()
+    end
+  }
+
+  d:show()
+  return result  -- nil if user cancel or closed the window
 end
+
 
 -- MAIN
 local spr = app.activeSprite
