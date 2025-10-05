@@ -64,49 +64,47 @@ local function build_from_palette(colors, bits, fileMagic, bomVal, tagFourCC, ad
   })
   local mainBlock = table.concat({ tagFourCC, le32(8 + #payload), payload })
 
-  -- optional PMCP footer (experimental)
+  -- optional PMCP footer
   local blocks = { mainBlock }
   if addPMCP then
-    local banks = math.floor(total / 16)
-    local nonEmpty = {}
-    for b = 0, banks - 1 do
-      local base = b * 16 * 2
-      local any = false
-      for j = 0, 15 do
-        local o = base + j*2
-        local lo = pal_blob:byte(o+1) or 0
-        local hi = pal_blob:byte(o+2) or 0
-        if (lo | (hi << 8)) ~= 0 then any = true break end
-      end
-      nonEmpty[b] = any
-    end
+    -- pcmpColorNum = colourNum / (bitdepth==4 ? 16 : 256)
+    -- block FourCC: RLCN -> "PMCP", NCLR -> "PCMP"
+    -- block size = 16 + pcmpColorNum*2
+    -- payload after size:
+    --   +0x08: u16 count (pcmpColorNum)
+    --   +0x0A: u16 0xBEEF
+    --   +0x0C: u32 0x00000008
+    --   +0x10: u16 indices [0..count-1]
+    local colours = total -- already padded to bank boundary
+    local perBank = (bits == 4) and 16 or 256
+    local pcmpColorNum = math.floor(colours / perBank)
+    if pcmpColorNum < 1 then pcmpColorNum = 1 end
 
-    local startBank = 0
-    if (banks > 1) and nonEmpty[1] then
-      startBank = 1
-    else
-      for b = 0, banks - 1 do
-        if nonEmpty[b] then startBank = b break end
-      end
-    end
+    local fourcc = (fileMagic == "RLCN") and "PMCP" or "PCMP"
 
-    local pmcp_head = table.concat({
-      le16(banks),
-      le16(0xBEEF),
-      le32(math.floor(dataOffset/2)),
-      le32(startBank << 16)
+    -- header fields after the 8-byte block header
+    local headerPayload = table.concat({
+      le16(pcmpColorNum),   -- count
+      le16(0xBEEF),         -- magic per C code
+      le32(0x00000008)      -- constant 8
     })
 
-    local lst = {}
-    for b = 0, banks - 1 do
-      if nonEmpty[b] and (b ~= startBank) then
-        lst[#lst+1] = le16(b + 1)
-      end
+    -- u16 indices 0..count-1
+    local idx = {}
+    for i = 0, pcmpColorNum-1 do
+      idx[#idx+1] = le16(i)
     end
+    local idxBlob = table.concat(idx)
 
-    local pmcpPayload = pmcp_head .. table.concat(lst)
-    local pmcpBlock = table.concat({ "PMCP", le32(8 + #pmcpPayload), pmcpPayload })
-    blocks[#blocks+1] = pmcpBlock
+    local fullPayload = headerPayload .. idxBlob
+    local blockSize = 8 + #fullPayload -- matches C: 16 + count*2
+
+    local pcmpBlock = table.concat({
+      fourcc,
+      le32(blockSize),
+      fullPayload
+    })
+    blocks[#blocks+1] = pcmpBlock
   end
 
   local nBlocks = #blocks
@@ -144,7 +142,7 @@ local function show_export_dialog()
     end
   }
 
-  d:check{ id="pmcp", label="Footer", text="Append optional PMCP (experimental)", selected=false }
+  d:check{ id="pmcp", label="Footer", text="Append optional PMCP footer", selected=false }
   d:file{ id="out", label="Output", save=true, filename="palette.rlcn", filetypes={"nclr","rlcn"} }
   d:button{ id="ok", text="Export", focus=true }
   d:button{ id="cancel", text="Cancel" }
