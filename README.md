@@ -4,6 +4,7 @@ Collection of Nintendo DS-related scripts for Aseprite
 - **Import NCLR/RLCN** to Aseprite
 - **Export NCLR/RLCN** from Aseprite
 - **Import Windows Palette (.pal)** to Aseprite
+- **Export Windows Palette (.pal)** to Aseprite
 ## Setup
 - [Download the scripts](https://github.com/RavenDS/Aseprite-Nitro-Plugins/archive/refs/heads/main.zip)
 - Open Aseprite
